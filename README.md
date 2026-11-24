@@ -66,6 +66,8 @@ manifest.webmanifest  PWA 配置
 - `test.mm_forum_replies`：回复
 - `test.mm_forum_likes`：点赞记录（按浏览器访客去重）
 
+演示版不做权限校验：列表和详情里所有帖子都显示删除按钮，任何人都能删；删除时会一并清掉这条帖子的回复和点赞。正式上线建议加登录和权限控制。
+
 接口：`https://ap-northeast-1.data.tidbcloud.com/api/v1beta/app/dataapp-qfCgliqz/endpoint/system/query`
 
 当前是黑客松演示版，Data App 的 Basic Auth 写在前端 `index.html` 里，任何拿到页面的人都能直接读写。正式上线前应把 SQL 调用迁到自己的后端或云函数，并在服务端补鉴权、限流和内容审核。

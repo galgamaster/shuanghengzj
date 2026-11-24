@@ -1,5 +1,5 @@
 /* 双衡智价 · 离线缓存 v2（网络优先，失败时回退缓存） */
-const CACHE = 'shuangheng-v3';
+const CACHE = 'shuangheng-v4';
 const ASSETS = [
   './',
   './index.html',

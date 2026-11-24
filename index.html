@@ -555,6 +555,8 @@ body.dark .mkbarwrap{background:var(--chip)}
 .ffoot{display:flex;align-items:center;gap:14px;margin-top:8px;font-size:10px;font-weight:800;color:var(--muted)}
 .flike,.freply{cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px}
 .flike.on{color:var(--red)}
+.fdel{margin-left:auto;cursor:pointer;user-select:none;color:var(--muted)}
+.fdel:active{color:var(--red)}
 .fempty,.floading{text-align:center;padding:34px 12px;font-size:12px;font-weight:700;color:var(--muted);line-height:1.9}
 .fempty b{color:var(--text)}
 .ferr{color:var(--red)}
@@ -1785,7 +1787,7 @@ function fTime(ts){
 }
 function fMap(r){
   return {...r,id:Number(r.id),likes:Number(r.likes||0),reply_count:Number(r.reply_count||0),
-    created_at:Number(r.created_at||0),liked:Number(r.liked||0)===1,
+    created_at:Number(r.created_at||0),visitor:r.visitor||'',liked:Number(r.liked||0)===1,
     price:(r.price===''||r.price==null)?null:Number(r.price)};
 }
 let forumSort='new',forumPosts=[],forumDetailId=null;
@@ -1794,7 +1796,7 @@ function forumLoad(){
   const list=$('#forumList');if(!list)return;
   list.innerHTML='<div class="floading">正在连接论坛…</div>';
   const order=forumSort==='hot'?'(p.likes*3+p.reply_count) DESC, p.created_at DESC':'p.created_at DESC';
-  const sql="SELECT p.id,p.author,p.title,p.content,p.city,p.cat,p.price,p.likes,p.reply_count,p.created_at, EXISTS(SELECT 1 FROM test.mm_forum_likes l WHERE l.post_id=p.id AND l.visitor='"+fEsc(fVisitor())+"') AS liked FROM test.mm_forum_posts p ORDER BY "+order+" LIMIT 50";
+  const sql="SELECT p.id,p.author,p.title,p.content,p.city,p.cat,p.price,p.likes,p.reply_count,p.created_at,p.visitor, EXISTS(SELECT 1 FROM test.mm_forum_likes l WHERE l.post_id=p.id AND l.visitor='"+fEsc(fVisitor())+"') AS liked FROM test.mm_forum_posts p ORDER BY "+order+" LIMIT 50";
   fq(sql).then(d=>{
     forumPosts=(d.rows||[]).map(fMap);
     try{localStorage.setItem('sh_forum_cache',JSON.stringify(forumPosts.slice(0,20)));}catch(e){}
@@ -1827,7 +1829,8 @@ function forumRender(){
       '<div class="fbody">'+esc(p.content)+'</div>'+
       (tags.length?'<div class="ftags">'+tags.join('')+'</div>':'')+
       '<div class="ffoot"><span class="flike'+(p.liked?' on':'')+'" data-flike="'+p.id+'">'+
-      (p.liked?'❤️':'🤍')+' '+p.likes+'</span><span class="freply">💬 '+p.reply_count+'</span></div></div>';
+      (p.liked?'❤️':'🤍')+' '+p.likes+'</span><span class="freply">💬 '+p.reply_count+'</span>'+
+      '<span class="fdel" data-fdel="'+p.id+'">🗑 删</span></div></div>';
   }).join('');
 }
 function forumSyncLike(id){
@@ -1856,7 +1859,7 @@ function forumOpen(id){
   $('#forumDetailModal').classList.remove('hide');
   $('#forumDetailBody').innerHTML='<div class="floading">加载中…</div>';
   $('#forumReplyAuthor').value=fName()==='匿名邻居'?'':fName();
-  fq("SELECT id,author,title,content,city,cat,price,likes,reply_count,created_at FROM test.mm_forum_posts WHERE id="+id+" LIMIT 1")
+  fq("SELECT id,author,title,content,city,cat,price,likes,reply_count,created_at,visitor FROM test.mm_forum_posts WHERE id="+id+" LIMIT 1")
     .then(d=>{
       const p=(d.rows||[])[0];if(!p)throw new Error('帖子不存在');
       return fq("SELECT id,author,content,created_at FROM test.mm_forum_replies WHERE post_id="+id+" ORDER BY created_at ASC LIMIT 100")
@@ -1874,7 +1877,8 @@ function forumOpen(id){
         (tags.length?'<div class="ftags">'+tags.join('')+'</div>':'')+
         '<div class="fdetail">'+esc(p.content)+'</div>'+
         '<div class="fdbar"><span class="flike'+(p.liked?' on':'')+'" id="fdLike" data-flike="'+p.id+'">'+
-        (p.liked?'❤️ ':'🤍 ')+p.likes+'</span><span>💬 '+replies.length+' 条回复</span></div>'+
+        (p.liked?'❤️ ':'🤍 ')+p.likes+'</span><span>💬 '+replies.length+' 条回复</span>'+
+        '<span class="fdel" data-fdel="'+p.id+'">🗑 删除帖子</span></div>'+
         '<div class="freplies"><div class="frhead">回 复 · '+replies.length+'</div>';
       if(!replies.length){h+='<div class="fno">还没有回复，来说两句</div>';}
       else{
@@ -1921,14 +1925,33 @@ function forumSubmit(){
   const price=pv===''?'NULL':String(Math.max(0,Number(pv)||0));
   fSaveName(author);
   const btn=$('#forumNewSubmit');btn.disabled=true;btn.textContent='发布中…';
-  const sql="INSERT INTO test.mm_forum_posts (author,title,content,city,cat,price,likes,reply_count,created_at) VALUES ('"+
-    fEsc(author)+"','"+fEsc(title)+"','"+fEsc(content)+"','"+fEsc(city)+"','"+fEsc(cat)+"',"+price+",0,0,"+Date.now()+")";
+  const sql="INSERT INTO test.mm_forum_posts (author,title,content,city,cat,price,likes,reply_count,created_at,visitor) VALUES ('"+
+    fEsc(author)+"','"+fEsc(title)+"','"+fEsc(content)+"','"+fEsc(city)+"','"+fEsc(cat)+"',"+price+",0,0,"+Date.now()+",'"+fEsc(fVisitor())+"')";
   fq(sql).then(()=>{
     $('#forumNewModal').classList.add('hide');
     forumSort='new';document.querySelectorAll('[data-fsort]').forEach(x=>x.classList.toggle('on',x.dataset.fsort==='new'));
     forumLoad();toast('已发布');
   }).catch(err=>toast('发布失败：'+(err.message||'请重试')))
     .finally(()=>{btn.disabled=false;btn.textContent='发 布';});
+}
+function forumDelete(id){
+  const p=forumPosts.find(x=>x.id===id);
+  if(!p)return;
+  if(!confirm('确定删除这条帖子？下面的回复和点赞也会一起删除。'))return;
+  fq("DELETE FROM test.mm_forum_posts WHERE id="+id)
+    .then(d=>{
+      const aff=Number((d.result&&d.result.row_affect)||0);
+      if(!aff)throw new Error('not-found');
+      return fq("DELETE FROM test.mm_forum_replies WHERE post_id="+id)
+        .then(()=>fq("DELETE FROM test.mm_forum_likes WHERE post_id="+id));
+    })
+    .then(()=>{
+      forumPosts=forumPosts.filter(x=>x.id!==id);
+      try{localStorage.setItem('sh_forum_cache',JSON.stringify(forumPosts.slice(0,20)));}catch(e){}
+      if(forumDetailId===id)forumCloseDetail();
+      forumRender();toast('已删除');
+    })
+    .catch(()=>toast('删除失败：帖子不存在或网络异常'));
 }
 function forumInitSelects(){
   $('#forumCity').innerHTML='<option value="">不限城市</option>'+REGIONS.map(r=>'<option value="'+esc(r.n)+'">'+esc(r.n)+'</option>').join('');
@@ -1943,12 +1966,15 @@ document.querySelectorAll('[data-fsort]').forEach(x=>x.addEventListener('click',
 }));
 $('#forumList').addEventListener('click',e=>{
   if(e.target.closest('[data-fretry]')){forumLoad();return;}
+  const del=e.target.closest('[data-fdel]');
+  if(del){e.stopPropagation();forumDelete(Number(del.dataset.fdel));return;}
   const like=e.target.closest('[data-flike]');
   if(like){e.stopPropagation();forumLike(Number(like.dataset.flike));return;}
   const card=e.target.closest('.fcard');
   if(card)forumOpen(Number(card.dataset.fid));
 });
 $('#forumDetailBody').addEventListener('click',e=>{
+  const del=e.target.closest('[data-fdel]');if(del){forumDelete(Number(del.dataset.fdel));return;}
   const like=e.target.closest('[data-flike]');if(like)forumLike(Number(like.dataset.flike));
 });
 $('#forumNewClose').addEventListener('click',()=>$('#forumNewModal').classList.add('hide'));
